@@ -1,119 +1,224 @@
 .data
-test_cases: 
-    .word 2, 33, 16, 1
-results: 
-    .word 0, 0, 0, 0
-string1: .string  "\nANS:"
+routes:
+    .word 0x0A000000, 8, 0
+    .word 0x0A010000, 16, 0
+    .word 0x0A010100, 24, 0
+    .word 0xC0A80000, 16, 0
 
+ips:
+    .word 0x0A010137
+    .word 0x0A0000FF
+    .word 0xC0A80001
+
+num_routes: .word 4
+num_ips: .word 3
+newline: .string "\n"
+best_match_ip: .word 0
+best_match_prefix: .word 0
+dot: .string "."
+slash: .string "/"
 .text
 .globl main
 
 main:
-    la a0, string1
-    li a7, 4
-    ecall
-    
-    la a5, test_cases
-    la a1, results
-    li a2, 4
-    
-loop:
-    beqz a2, sort_loop_outer
-    lw a3, 0(a5)
-    mv a0, a3
-    jal ra, count_leading_zeros
-    sw a4, 0(a1)
-    addi a5, a5, 4
-    addi a1, a1, 4
-    addi a2, a2, -1
-    j loop
-    
-sort_loop_outer:
-    li t4, 3
-    
-sort_loop_inner:
-    la t0, results  # Use t0 to hold the address of the results array
-    li t5, 0  # Initialize t5, the counter for the inner loop
+    # Load base addresses of routes, ips, num_routes, and num_ips into registers
+    la a1, routes
+    la t1, ips
+    la t0, num_routes
+    lw a2, 0(t0)
+    la t0, num_ips
+    lw a3, 0(t0)
 
-inner_loop:
-    bge t5, t4, outer_continue  # If t5 >= t4, jump to outer_continue
-    lw a1, 0(t0)  # Load values using t0
-    lw a2, 4(t0)  # Load the next value in the array
-    ble a1, a2, inner_continue  # If the first value is less than or equal to the second, continue to the next pair
-    
-    sw a2, 0(t0)  # Swap values using t0
-    sw a1, 4(t0)
-    
-inner_continue:
-    addi t5, t5, 1  # Increment the counter for the inner loop
-    addi t0, t0, 4  # Update t0 to point to the next element in results array
-    j inner_loop  # Jump to the start of inner_loop
-    
-outer_continue:
-    addi t4, t4, -1  # Decrement the counter for the outer loop
-    bnez t4, sort_loop_inner  # If t4 is not zero, jump to the start of sort_loop_inner
-    
-print_results:
-    la t0, results  # Load the address of results array to t0
-    li a2, 4  # Set the counter a2 to 4
-    
-print_loop:
-    beqz a2, exit  # If the counter a2 is zero, jump to exit
-    lw a1, 0(t0)  # Load the value from results array to a1 using t0
-    mv a0, a1  # Move the value from a1 to a0
-    li a7, 1  # Set a7 to 1 for print integer syscall
-    ecall  # Make syscall to print integer
-    li a7, 11  # Set a7 to 11 for print character syscall
-    li a0, 10  # Load ASCII value of newline (10) to a0
-    ecall  # Make syscall to print newline character
-    addi t0, t0, 4  # Update the address in t0 to point to the next element in results array
-    addi a2, a2, -1  # Decrement the counter a2
-    j print_loop  # Jump to the beginning of print_loop
+    # Loop through each IP and find the best match
+ip_loop:
+    beqz a3, exit        # If no more IPs, exit the loop
+
+    lw a0, 0(t1)         # ips Load the current IP into a0
+    #li a7, 1             # System call for print integer
+    #ecall
+    j find_best_match # Call the find_best_match function
+    #addi t1, t1, 4       # Move to the next IP
+    #addi a3, a3, -1      # Decrement the IP count
+    #j ip_loop
 
 exit:
+    # Exit the program
     li a7, 10
     ecall
 
 count_leading_zeros:
     li a4, 32
-    beqz a3, clz_exit
+    srli s2, t2, 1
+    or a6, t2, s2
+    srli s2, a6, 2
+    or a6, a6, s2
+    srli s2, a6, 4
+    or a6, a6, s2
+    srli s2, a6, 8
+    or a6, a6, s2
+    srli s2, a6, 16
+    or a6, a6, s2
     
-    srli t1, a3, 1
-    or a3, a3, t1
-    srli t1, a3, 2
-    or a3, a3, t1
-    srli t1, a3, 4
-    or a3, a3, t1
-    srli t1, a3, 8
-    or a3, a3, t1
-    srli t1, a3, 16
-    or a3, a3, t1
+    li s2, 0x55555555
+    srli t2, a6, 1
+    and t2, t2, s2
+    sub a6, a6, t2
     
-    li t1, 0x55555555
-    srli t2, a3, 1
-    and t2, t2, t1
-    sub a3, a3, t2
+    li s2, 0x33333333
+    and t2, a6, s2
+    srli t3, a6, 2
+    and t3, t3, s2
+    add a6, t2, t3
     
-    li t1, 0x33333333
-    and t2, a3, t1
-    srli t3, a3, 2
-    and t3, t3, t1
-    add a3, t2, t3
+    li s2, 0x0f0f0f0f
+    srli t2, a6, 4
+    add t2, t2, a6
+    and a6, t2, s2
     
-    li t1, 0x0f0f0f0f
-    srli t2, a3, 4
-    add t2, t2, a3
-    and a3, t2, t1
+    srli s2, a6, 8
+    add a6, a6, s2
+    srli s2, a6, 16
+    add a6, a6, s2
     
-    srli t1, a3, 8
-    add a3, a3, t1
-    srli t1, a3, 16
-    add a3, a3, t1
+    li s2, 0x7f
+    and a6, a6, s2
+    sub a4, a4, a6
+    ret
     
-    li t1, 0x7f
-    and a3, a3, t1
-    sub a4, a4, a3
+is_prefix_match:
+    # a0: target_ip
+    # a1: prefix
+    # a4: prefix_length
+
+    # Calculate the mask based on prefix_length
+    li   t2, 32          # Load 32 into t2
+    sub  t2, t2, a4      # Subtract prefix_length from 32
+    li   t3, 1           # Load 1 into t3
+    sll  t3, t3, t2      # Shift left 1 by the result of the subtraction
+    addi t3, t3, -1      # Subtract 1 from the result to get a mask with leading zeros
+    not  t2, t3          # Bitwise NOT to get the mask
+
+    # Apply the mask to target_ip
+    and  t2, a0, t2      # AND operation between target_ip and mask
+    # Compare the result with prefix
+    li   a5, 0           # Set return value to 0 (no match)
+    beq  t2, t0, match   # If they are equal, it's a match
     ret
 
-clz_exit:
+match:
+    li   a5, 1           # Set return value to 1 (match)
     ret
+
+
+find_best_match:
+    # a0: target_ip
+    # a1: base address of routes
+    # a2: num_routes
+
+    # Initialize best_match_index, max_leading_zeros, and route_index
+    li t4, -1            # t4 will hold best_match_index
+    li t5, 0             # t5 will hold max_leading_zeros
+    li t6, 0             # t6 will hold route_index (number of routes traversed)
+    li s3, 0             # s3 will hold best_match_ip
+    li s4, 0             # s4 will hold best_match_prefix
+
+loop_routes:
+    beqz a2, end_loop    # If no more routes, end the loop
+    # Load prefix and prefix_length from routes
+    lw t0, 0(a1)         # t0 holds ip_prefix
+    lbu a4, 4(a1)        # a3 holds prefix_length
+    # Check if prefix matches
+    jal ra, is_prefix_match
+    beqz a5, skip_route  # If no match, skip to next route
+
+    # Calculate leading zeros
+    xor t2, a0, t0       # XOR target_ip and ip_prefix 
+    jal ra, count_leading_zeros
+
+    # Check if current route has more leading zeros than previous best
+    blt t5, a4, update_best
+
+    # If you reach here, it means the route matched but was not the best match
+    # So, you can skip to the next route
+    j skip_route
+    
+skip_route:
+    addi a1, a1, 12       # Move to the next route entry
+    addi a2, a2, -1      # Decrement num_routes
+    addi t6, t6, 1       # Increment route_index
+    j loop_routes
+
+update_best:
+    mv t5, a4            # Update max_leading_zeros
+    mv t4, t6            # Update best_match_index with current route_index
+    lw s3, 0(a1)         # Save the best match IP from routes
+    lbu s4, 4(a1)        # Save the best match prefix from routes
+    j skip_route
+
+print_ip:
+    # s3 contains the IP to be printed
+    # Extract and print the first octet
+    srli s5, s3, 24
+    andi s5, s5, 0xFF
+    mv a0, s5
+    li a7, 1
+    ecall
+
+    # Print a dot
+    la a0, dot
+    li a7, 4
+    ecall
+
+    # Extract and print the second octet
+    srli s5, s3, 16
+    andi s5, s5, 0xFF
+    mv a0, s5
+    li a7, 1
+    ecall
+
+    # Print a dot
+    la a0, dot
+    li a7, 4
+    ecall
+
+    # Extract and print the third octet
+    srli s5, s3, 8
+    andi s5, s5, 0xFF
+    mv a0, s5
+    li a7, 1
+    ecall
+
+    # Print a dot
+    la a0, dot
+    li a7, 4
+    ecall
+
+    # Extract and print the fourth octet
+    andi s5, s3, 0xFF
+    mv a0, s5
+    li a7, 1
+    ecall
+
+    ret
+
+
+end_loop:
+    # Print the best match IP
+    mv a0, s3
+    jal ra, print_ip
+    la a0, slash
+    li a7, 4
+    ecall
+    # Print the best match prefix
+    mv a0, s4
+    li a7, 1
+    ecall
+    la a0, newline
+    li a7, 4
+    ecall
+
+    li a2, 4
+    addi t1, t1, 4       # Move to the next IP
+    addi a3, a3, -1      # Decrement the IP count
+    la a1, routes
+    j ip_loop
